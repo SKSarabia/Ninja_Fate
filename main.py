@@ -1,3 +1,31 @@
+"""
+Ninja Fate - Main.py
+---------------------
+
+Juego arcade desarrollado en Python con Pygame.
+Controlas a un ninja que debe sobrevivir oleadas de enemigos.
+
+Este archivo contiene:
+- Bucle principal del juego
+- Menu de inicio y configuracion
+- Logica de combate, movimiento y oleadas
+- Sistema de inteligencia para enemigos
+- Carga de sprites, musica y configuracion persistente
+
+Requisitos:
+- Python 3.10
+- Pygame 2.0
+
+Estructura del proyecto:
+- imagenes/: sprites y fondo
+- musica/: musica de fondo
+- config.db: base de datos SQLite para configuracion
+
+Autor: Luis Sarabia
+Repositorio: https://github.com/SKSarabia/game2025-sarabia
+"""
+
+
 import pygame
 import sys
 import math
@@ -63,10 +91,7 @@ RED = (255, 0, 0)
 GRAY = (100, 100, 100)
 BLACK = (0, 0, 0)
 
-# Alerta global para enemigos:
-# todos recibiran la posicion "last seen" pero con un retardo individual
-GLOBAL_ALERT = {"pos": None, "time": 0.0, "active": False, "duration": 6.0}
-
+# Variables globales
 player_speed = 5
 player_radius = 12
 katana_length = 50
@@ -74,6 +99,9 @@ katana_speed = 30
 katana_angle = 0
 katana_direction = 1
 shuriken_speed = 10
+
+# Alerta global para enemigos
+GLOBAL_ALERT = {"pos": None, "time": 0.0, "active": False, "duration": 6.0}
 
 # HABITACION: paredes a los lados, arriba, abajo y pilares
 obstacles = [
@@ -119,6 +147,8 @@ ninja_frames = [
     spritesheet.subsurface(pygame.Rect(ix * FRAME_W, 0, FRAME_W, FRAME_H))
     for ix in range(NUM_FRAMES)
 ]
+
+
 
 # Funciones de colision y geometria
 def ccw(A, B, C):
@@ -433,6 +463,24 @@ def draw_player(surface, pos, angle, anim):
     rect = sprite_rot.get_rect(center=(int(pos[0]), int(pos[1])))
     surface.blit(sprite_rot, rect)
 
+def draw_crosshair(surface, pos, color=WHITE, size=15, thickness=2):
+    """Dibuja una cruceta siguiendo al mouse.
+    
+    Parametros:
+    - surface: destino donde dibujar.
+    - pos: [x, y] posicion del mouse.
+    - color: color de la cruceta (por defecto rojo).
+    - size: brazos de la cruz (pixeles desde el centro).
+    - thickness: grosor de las lineas.
+    """
+    x, y = int(pos[0]), int(pos[1])
+    # Linea horizontal
+    pygame.draw.line(surface, color, (x - size, y), (x + size, y), thickness)
+    # Linea vertical
+    pygame.draw.line(surface, color, (x, y - size), (x, y + size), thickness)
+    # Circulo central pequeño
+    pygame.draw.circle(surface, color, (x, y), 3)
+
 menu_state = 'menu_principal'
 
 # BUCLE PRINCIPAL DEL JUEGO
@@ -545,15 +593,31 @@ while True:
                         state["enemies"].remove(e)
             else:
                 katana_angle = 0
+            # Mover shurikens y comprobar colisiones contra paredes
+            shurikens = []
             for s in state["shurikens"]:
                 s["rect"].x += int(s["dir"][0] * shuriken_speed)
                 s["rect"].y += int(s["dir"][1] * shuriken_speed)
-            state["shurikens"] = [s for s in state["shurikens"] if 0 <= s["rect"].x <= WIDTH and 0 <= s["rect"].y <= HEIGHT]
+                # Si colisiona con cualquier obstaculo, eliminar el shuriken
+                if any(s["rect"].colliderect(obs) for obs in obstacles):
+                    continue
+                # Mantener solo si esta dentro de la pantalla
+                if 0 <= s["rect"].x <= WIDTH and 0 <= s["rect"].y <= HEIGHT:
+                    shurikens.append(s)
+            state["shurikens"] = shurikens
+
+            # Comprobar colisiones shuriken-enemigo
             for s in state["shurikens"][:]:
                 for e in state["enemies"][:]:
                     if s["rect"].colliderect(e.body_rect):
-                        state["enemies"].remove(e)
-                        state["shurikens"].remove(s)
+                        try:
+                            state["enemies"].remove(e)
+                        except ValueError:
+                            pass
+                        try:
+                            state["shurikens"].remove(s)
+                        except ValueError:
+                            pass
                         break
             for e in state["enemies"]:
                 e.update(state["player_pos"], dt/1000.0)
@@ -625,6 +689,11 @@ while True:
         # Boton volver
         pygame.draw.rect(screen, (80, 80, 200), btn_conf_volver)
         screen.blit(font_small.render("Volver", True, WHITE), (btn_conf_volver.x + 35, btn_conf_volver.y + 7))
+    
+    # Dibujar cruceta del mouse (en todos los menus)
+    pygame.mouse.set_visible(False)  # Ocultar cursor del mouse
+    mouse_pos = pygame.mouse.get_pos()
+    draw_crosshair(screen, mouse_pos)
     
     # Actualizar pantalla
     pygame.display.flip()
