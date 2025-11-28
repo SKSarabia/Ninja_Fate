@@ -90,6 +90,8 @@ WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GRAY = (100, 100, 100)
 BLACK = (0, 0, 0)
+BROWN_LIGHT = (193, 154, 107)
+BROWN_DARK  = (92, 64, 51)
 
 # Variables globales
 player_speed = 5
@@ -147,6 +149,23 @@ ninja_frames = [
     spritesheet.subsurface(pygame.Rect(ix * FRAME_W, 0, FRAME_W, FRAME_H))
     for ix in range(NUM_FRAMES)
 ]
+
+# Cargar spritesheet de enemigos (identico al del ninja)
+ENEMY_SPRITESHEET_PATH = 'imagenes/Enemy_attack_R.png'
+enemy_spritesheet = pygame.image.load(ENEMY_SPRITESHEET_PATH).convert_alpha()
+enemy_frames = [
+    enemy_spritesheet.subsurface(pygame.Rect(ix * FRAME_W, 0, FRAME_W, FRAME_H))
+    for ix in range(NUM_FRAMES)
+]
+
+# Cargar imagen del shuriken
+SHURIKEN_PATH = 'imagenes/Shuriken.png'
+shuriken_img = None
+try:
+    shuriken_img = pygame.image.load(SHURIKEN_PATH).convert_alpha()
+    shuriken_img = pygame.transform.scale(shuriken_img, (16, 16))
+except Exception:
+    shuriken_img = None
 
 
 
@@ -223,6 +242,9 @@ class Enemy:
         self.radius = 200
         self.stuck_timer = 0
         self.body_rect = pygame.Rect(0, 0, self.size, self.size)
+        # Animacion del enemigo: usar el mismo spritesheet que el jugador
+        self.anim = 0
+        self.sees_player = False
         # comportamiento de patrulla/busqueda
         self.target = None
         self.last_seen_pos = None
@@ -325,7 +347,9 @@ class Enemy:
         4. En ausencia de lo anterior, patrulla hacia `target` (waypoint).
         """
         # dt en segundos
-        if self.can_see_player(player_pos):
+        visible = self.can_see_player(player_pos)
+        self.sees_player = visible
+        if visible:
             # Cuando detecta al jugador, registrar ultima posicion vista y perseguir
             self.last_seen_pos = list(player_pos)
             self.search_timer = 0.0
@@ -405,16 +429,24 @@ class Enemy:
         # actualizar last_pos para la proxima comprobacion
         self._last_pos[0], self._last_pos[1] = self.pos[0], self.pos[1]
 
+        # Actualizar animacion: si vemos al jugador, avanzar frames, sino mostrar frame 0
+        if self.sees_player:
+            self.anim = (self.anim + 1) % NUM_FRAMES
+        else:
+            self.anim = 0
+
     def draw(self, surface):
-        """Dibuja una representacion simple del enemigo (triangulo direccional)."""
-        length = self.size; width = self.size / 1.5
-        points = [(length, 0), (-length/2, -width/2), (-length/2, width/2)]
-        rotated = []
-        for x, y in points:
-            rx = x * math.cos(self.angle) - y * math.sin(self.angle)
-            ry = x * math.sin(self.angle) + y * math.cos(self.angle)
-            rotated.append((self.pos[0] + rx, self.pos[1] + ry))
-        pygame.draw.polygon(surface, RED, rotated)
+        """Dibuja al enemigo usando el mismo sprite que el jugador.
+
+        Si `sees_player` es True se anima (ciclo de frames), si no muestra el
+        primer frame (indice 0). El sprite se rota para apuntar en la direccion
+        del enemigo.
+        """
+        # Elegir frame del spritesheet de enemigo (usa la lista global `enemy_frames`)
+        frame_img = enemy_frames[self.anim % NUM_FRAMES]
+        sprite_rot = pygame.transform.rotate(frame_img, -math.degrees(self.angle))
+        rect = sprite_rot.get_rect(center=(int(self.pos[0]), int(self.pos[1])))
+        surface.blit(sprite_rot, rect)
 
     def draw_vision(self, surface):
         """Dibuja el cono de vision (semi-transparente) para debug/visualizacion."""
@@ -547,20 +579,25 @@ while True:
                     dy = my - state["player_pos"][1]
                     length = max(1, math.hypot(dx, dy))
                     dx /= length; dy /= length
-                    state["shurikens"].append({
-                        "rect": pygame.Rect(state["player_pos"][0], state["player_pos"][1], 8, 8),
-                        "dir": (dx, dy)
-                    })
+                    if shuriken_img is not None:
+                        rect = shuriken_img.get_rect(center=(state["player_pos"][0], state["player_pos"][1]))
+                    else:
+                        rect = pygame.Rect(state["player_pos"][0], state["player_pos"][1], 8, 8)
+                        rect.center = (state["player_pos"][0], state["player_pos"][1])
+                    state["shurikens"].append({"rect": rect, "dir": (dx, dy)})
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     menu_state = 'menu_principal'  # ESC: volver al menu
     
     # RENDERIZAR ESCENA
-    screen.fill(BLACK)  # Limpiar pantalla
+    if menu_state == 'jugando':
+        screen.fill(BROWN_LIGHT)  # Fondo café en el juego
+    else:
+        screen.fill(BLACK)  # Fondo negro en menú/configuración
     
     if menu_state == 'jugando':
         # Renderizar obstaculos del mapa
         for obs in obstacles:
-            pygame.draw.rect(screen, GRAY, obs)
+            pygame.draw.rect(screen, BROWN_DARK, obs)
         
         # Actualizar logica del juego (si no es game over)
         if not state["game_over"]:
@@ -601,9 +638,10 @@ while True:
                 # Si colisiona con cualquier obstaculo, eliminar el shuriken
                 if any(s["rect"].colliderect(obs) for obs in obstacles):
                     continue
-                # Mantener solo si esta dentro de la pantalla
-                if 0 <= s["rect"].x <= WIDTH and 0 <= s["rect"].y <= HEIGHT:
-                    shurikens.append(s)
+                # Mantener solo si esta dentro de la pantalla (considerando tamaño)
+                if s["rect"].right < 0 or s["rect"].left > WIDTH or s["rect"].bottom < 0 or s["rect"].top > HEIGHT:
+                    continue
+                shurikens.append(s)
             state["shurikens"] = shurikens
 
             # Comprobar colisiones shuriken-enemigo
@@ -644,7 +682,10 @@ while True:
             e.draw_vision(screen)  # Dibujar cono de vision (debug)
             e.draw(screen)  # Dibujar enemigo
         for s in state["shurikens"]:
-            pygame.draw.rect(screen, WHITE, s["rect"])  # Dibujar shuriken
+            if shuriken_img is not None:
+                screen.blit(shuriken_img, s["rect"])  # Dibujar shuriken como imagen
+            else:
+                pygame.draw.rect(screen, WHITE, s["rect"])  # Dibujar shuriken como rectangulo blanco si no hay imagen
         
         # RENDERIZAR UI EN JUEGO
         wave_text = font_big.render(f"Oleada: {state['wave']}", True, WHITE)
