@@ -4,6 +4,8 @@
 
 **Ninja Fate** es un videojuego de accion arcade con vista desde arriba (top-down) donde controlas a un ninja que debe sobrevivir oleadas de enemigos en modo horda. El juego combina mecanicas clasicas de combate rapido con un sistema de IA para enemigos.
 
+![Ninja Fate](./imagenes/NinjaFate.png)
+
 ### Caracteristicas principales
 -  Modo horda infinito con oleadas progresivas
 -  Sistema de IA con patrullaje, persecucion y alerta global

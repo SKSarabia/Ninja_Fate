@@ -1020,16 +1020,16 @@ while True:
     # MENU PRINCIPAL
     if menu_state == 'menu_principal':
         title = font_big.render("Ninja Fate", True, (220, 220, 80))
-        screen.blit(title, (320, 110))
+        screen.blit(title, (320, 160))
         # Boton Jugar
         pygame.draw.rect(screen, (60, 90, 200), btn_jugar)
-        screen.blit(font_small.render("Jugar", True, WHITE), (btn_jugar.x + 34, btn_jugar.y + 11))
+        screen.blit(font_small.render("Jugar", True, WHITE), (btn_jugar.x + 65, btn_jugar.y + 11))
         # Boton Configuracion
         pygame.draw.rect(screen, (60, 110, 90), btn_conf)
-        screen.blit(font_small.render("Configuracion", True, WHITE), (btn_conf.x + 6, btn_conf.y + 11))
+        screen.blit(font_small.render("Configuracion", True, WHITE), (btn_conf.x + 20, btn_conf.y + 11))
         # Boton Salir
         pygame.draw.rect(screen, (200, 60, 60), btn_salir)
-        screen.blit(font_small.render("Salir", True, WHITE), (btn_salir.x + 60, btn_salir.y + 11))
+        screen.blit(font_small.render("Salir", True, WHITE), (btn_salir.x + 70, btn_salir.y + 11))
         # Leaderboard
         leaders = load_leaderboard(5)
         box_w = 320
